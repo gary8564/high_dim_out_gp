@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "high_dim_out_gp"
+version = "0.1.0"
+dependencies = [
+    "torch",
+    "tqdm",
+    "gpytorch",
+    "scikit-learn"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
