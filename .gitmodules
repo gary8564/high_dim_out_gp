@@ -1,0 +1,3 @@
+[submodule "src/pca_psimpy"]
+	path = src/pca_psimpy
+	url = https://github.com/gary8564/pca_psimpy.git
