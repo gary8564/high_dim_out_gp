@@ -27,7 +27,7 @@ Here, $I(\cdot)$ is the indicator function and $0 \le s \le 3,\; t>0$. Inputs ar
 
 **Output**: $d_s$ × $d_t$ grid of concentrations
 
-Source: [Environmental Model function (Virtual Library of Simulation Experiments)](https://www.sfu.ca/~ssurjano/environ.html). See also [Bliznyuk et al. (2008)](https://www.jstor.org/stable/27594307) for more theoretical background information.
+Source: [Environmental Model function (Virtual Library of Simulation Experiments)](https://www.sfu.ca/~ssurjano/environ.html). See also [Bliznyuk et al. (2008)](https://www.jstor.org/stable/27594307).
 
 ## Case study A: Synthetic dataset
 
