@@ -52,7 +52,10 @@ class BatchIndependentMultioutputGPModel(ExactGP):
                                             ConstantMean(batch_shape=torch.Size([self.num_tasks]))
 
         
-        empirical_scale = (train_x.max(dim=0).values - train_x.min(dim=0).values).mean().item()
+        if train_x.shape[0] > 0:
+            empirical_scale = (train_x.max(dim=0).values - train_x.min(dim=0).values).mean().item()
+        else:
+            empirical_scale = 1.0  # Default scale for empty data
         shape_param = 2.5  # Slightly lower shape parameter for better regularization
         rate_param = 5.0 / empirical_scale  # Scale based on feature range
 
@@ -273,13 +276,15 @@ class MoGP_GPytorch:
             
         if fine_tune_optimizer is not None:
             # LBFGS fine-tuning after training with ADAM
+            fine_tune_scheduler = None
             if enable_scheduler:
                 fine_tune_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(fine_tune_optimizer, mode='min', factor=0.5, patience=5)
             num_finetune_epochs = 20
             for epoch in tqdm(range(num_finetune_epochs), desc="LBFGS fine-tuning"):
                 fine_tune_optimizer.step(fine_tune_closure)
-                fine_tune_scheduler.step(loss.item())
                 current_loss = fine_tune_closure().item()
+                if fine_tune_scheduler is not None:
+                    fine_tune_scheduler.step(current_loss)
                 print(f"Fine-tuning Epoch {epoch+1}/{num_finetune_epochs}, Loss: {current_loss:.3f}")
                 if fine_tune_optimizer.param_groups[0]['lr'] < 1e-6:
                     print("Learning rate too small, stopping fine-tuning")

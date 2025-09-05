@@ -68,7 +68,7 @@ class DKL_GPRegressor(gpytorch.models.ExactGP):
             gpytorch.kernels.ScaleKernel(base_kernel),
             num_dims=self.reduced_dim, grid_size=50 
         )
-        self.feature_extractor = FeatureExtractor(data_dim=train_x.size(-1))
+        self.feature_extractor = FeatureExtractor(data_dim=train_x.size(-1), latent_dim=self.reduced_dim)
 
         # This module will scale the NN features so that they're nice values
         self.scale_to_bounds = gpytorch.utils.grid.ScaleToBounds(-1., 1.)

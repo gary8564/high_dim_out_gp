@@ -56,11 +56,7 @@ conda activate gp_emulator
 The detailed description and the source of the data used here are described [here](./docs/data.md).
 
 ## Usage
-1. High-dimensional input problem
-```bash
-python demo/high_dim_input_prob.py --case-study "tsunami_tokushima" --model "gpytorch" --dim-reduction
-```
-2. High-dimensional output problem
+
 ```bash
 python demo/high_dim_output_prob.py --case-study "acheron" --model "ppgasp" --dim-reduction
 ```
