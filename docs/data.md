@@ -8,8 +8,10 @@ The Environmental Model function describes the concentration of a pollutant rele
 
 $$
 f(\mathbf{x}) = \sqrt{4\pi} C(\mathbf{x}) \\
-\text{where  } C(\mathbf{x}) = \frac{M}{\sqrt{4\pi D t}} \, \exp\!\left( -\frac{s^{2}}{4 D t} \right)
-\; + \; I(t>\tau) \, \frac{M}{\sqrt{4\pi D (t-\tau)}} \, \exp\!\left( -\frac{(s- L)^{2}}{4 D (t-\tau)} \right)
+$$
+where
+$$
+C(\mathbf{x}) = \frac{M}{\sqrt{4\pi D t}} \exp\left( -\frac{s^{2}}{4 D t} \right) + I(t>\tau) \frac{M}{\sqrt{4\pi D (t-\tau)}} \exp\left( -\frac{(s- L)^{2}}{4 D (t-\tau)} \right)
 $$
 
 Here, $I(\cdot)$ is the indicator function and $0 \le s \le 3,\; t>0$. Inputs are $M$ (mass), $D$ (diffusion rate), $L$ (location of second spill), and $\tau$ (time of second spill).
