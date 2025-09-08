@@ -113,4 +113,4 @@ class ErrorMetrics:
         if predictions_mean.size != observations.size:
             raise ValueError("predictions and measurements must be of equal size")
 
-        return np.mean((predictions_upper95 >= observations) & (observations >= predictions_lower95))
+        return np.mean((predictions_upper95.flatten() >= observations.flatten()) & (observations.flatten() >= predictions_lower95.flatten()))

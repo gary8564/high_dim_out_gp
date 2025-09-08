@@ -128,7 +128,7 @@ class TestPCAPPGaSP:
         assert pcappgasp.original_output_dim == 15  # output_dim
         
         # Make predictions
-        predictions_latent, predictions_mean_orig, infer_time = pcappgasp.predict(X_test)
+        predictions_latent, predictions_mean_orig, infer_time, _ = pcappgasp.predict(X_test)
         
         assert infer_time > 0
         

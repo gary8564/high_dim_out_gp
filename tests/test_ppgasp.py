@@ -212,32 +212,33 @@ class TestBatchIndependentMultioutputGPModel:
         assert hasattr(output, 'mean')
         # Both configurations should output (n_samples, num_tasks) 
         assert output.mean.shape == (n_samples, num_tasks)
-    
-    def test_tie_parameters_across_tasks(self):
-        """Test parameter tying functionality"""
-        n_samples = 25
-        input_dim = 4
-        num_tasks = 8
-        
+
+    def test_lengthscale_shared_across_outputs(self):
+        """Ensure all outputs share the same lengthscale vector when mimic_ppgasp=True"""
+        n_samples = 30
+        input_dim = 3
+        num_tasks = 6
+
         X = torch.randn(n_samples, input_dim)
         y = torch.randn(n_samples, num_tasks)
-        
+
         likelihood = gpytorch.likelihoods.MultitaskGaussianLikelihood(num_tasks=num_tasks, rank=0)
 
         model = BatchIndependentMultioutputGPModel(
             X, y, likelihood, kernel_type="matern_5_2", mimic_ppgasp=True
         )
-        
-        # Parameters should be tied after initialization when mimic_ppgasp=True
+
         inner_kernel = model._get_inner_kernel(model.covar_module)
+
+        # With mimic_ppgasp=True we expect a single shared kernel across tasks
+        assert inner_kernel.batch_shape == torch.Size([])
+
+        # Check that lengthscales are the same across tasks (tied)
         lengthscales = inner_kernel.lengthscale
-        
-        # Check that lengthscales are similar across tasks (tied)
-        if lengthscales.dim() > 1 and lengthscales.shape[0] > 1:
-            lengthscale_std = torch.std(lengthscales, dim=0)
-            # Handle NaN values by checking finite values or skipping test for small data
-            if torch.all(torch.isfinite(lengthscale_std)):
-                assert torch.all(lengthscale_std < 1e-3)  # Relaxed tolerance
+        if lengthscales.dim() >= 3 and lengthscales.shape[0] > 1:
+            max_diff = (lengthscales - lengthscales[0].expand_as(lengthscales)).abs().max()
+            assert torch.isfinite(max_diff)
+            assert max_diff.item() < 1e-6
 
 
 class TestDifferentOptimizers:

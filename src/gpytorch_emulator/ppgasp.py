@@ -52,10 +52,7 @@ class BatchIndependentMultioutputGPModel(ExactGP):
                                             ConstantMean(batch_shape=torch.Size([self.num_tasks]))
 
         
-        if train_x.shape[0] > 0:
-            empirical_scale = (train_x.max(dim=0).values - train_x.min(dim=0).values).mean().item()
-        else:
-            empirical_scale = 1.0  # Default scale for empty data
+        empirical_scale = (train_x.max(dim=0).values - train_x.min(dim=0).values).mean().item()
         shape_param = 2.5  # Slightly lower shape parameter for better regularization
         rate_param = 5.0 / empirical_scale  # Scale based on feature range
 
@@ -80,6 +77,7 @@ class BatchIndependentMultioutputGPModel(ExactGP):
         # Wrap the base kernel with a ScaleKernel to include an output-scale parameter
         # shared_kernel = ScaleKernel(base_kernel, outputscale_prior=GammaPrior(2.0, 0.15))
         coregionalized_kernel = MultitaskKernel(base_kernel, num_tasks=self.num_tasks, rank=0)
+        
         # Create the batched kernel (num_tasks,)
         # self.covar_module = ScaleKernel(
         #     shared_kernel, 
@@ -88,7 +86,8 @@ class BatchIndependentMultioutputGPModel(ExactGP):
         #     base_kernel,
         #     batch_shape=torch.Size([self.num_tasks])
         # )
-        self.covar_module = ScaleKernel(coregionalized_kernel) if self.mimic_ppgasp else ScaleKernel(base_kernel,batch_shape=torch.Size([self.num_tasks]))
+        self.covar_module = ScaleKernel(coregionalized_kernel) if self.mimic_ppgasp \
+            else ScaleKernel(base_kernel,batch_shape=torch.Size([self.num_tasks]))
         
         # Initialize lengthscales with dimension-aware values
         self._initialize_lengthscales(train_x, train_y)
@@ -155,9 +154,9 @@ class BatchIndependentMultioutputGPModel(ExactGP):
         inner_kernel.lengthscale.data = common_lengthscale.expand_as(base_lengthscale)
         
         # Tie the outputscale
-        base_outputscale = self.covar_module.outputscale.detach().clone()
-        common_outputscale = base_outputscale.mean()
-        self.covar_module.outputscale.data = common_outputscale.expand_as(self.covar_module.outputscale).clone()
+        # base_outputscale = self.covar_module.outputscale.detach().clone()
+        # common_outputscale = base_outputscale.mean()
+        # self.covar_module.outputscale.data = common_outputscale.expand_as(self.covar_module.outputscale).clone()
 
         # # Tie the mean constant
         # base_mean = self.mean_module.constant.detach().clone()
@@ -168,7 +167,6 @@ class BatchIndependentMultioutputGPModel(ExactGP):
         # x has shape (n, d)
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
-        
         if self.mimic_ppgasp:
             # For mimic_ppgasp=True: Uses MultitaskMean and MultitaskKernel 
             # This should work directly with MultitaskMultivariateNormal
@@ -179,7 +177,7 @@ class BatchIndependentMultioutputGPModel(ExactGP):
             return MultitaskMultivariateNormal.from_batch_mvn(
                 MultivariateNormal(mean_x, covar_x)
             )
-
+            
 class MoGP_GPytorch:
     def __init__(self, device: str, kernel_type: str = 'matern_5_2', mimic_ppgasp: bool = True):
         self.device = torch.device(device)
@@ -276,15 +274,13 @@ class MoGP_GPytorch:
             
         if fine_tune_optimizer is not None:
             # LBFGS fine-tuning after training with ADAM
-            fine_tune_scheduler = None
             if enable_scheduler:
                 fine_tune_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(fine_tune_optimizer, mode='min', factor=0.5, patience=5)
             num_finetune_epochs = 20
             for epoch in tqdm(range(num_finetune_epochs), desc="LBFGS fine-tuning"):
                 fine_tune_optimizer.step(fine_tune_closure)
+                fine_tune_scheduler.step(loss.item())
                 current_loss = fine_tune_closure().item()
-                if fine_tune_scheduler is not None:
-                    fine_tune_scheduler.step(current_loss)
                 print(f"Fine-tuning Epoch {epoch+1}/{num_finetune_epochs}, Loss: {current_loss:.3f}")
                 if fine_tune_optimizer.param_groups[0]['lr'] < 1e-6:
                     print("Learning rate too small, stopping fine-tuning")
