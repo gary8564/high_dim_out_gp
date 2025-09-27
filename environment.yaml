@@ -6,6 +6,11 @@ dependencies:
   - numpy<2.0
   - r-base
   - r-robustgasp
+  - r-optparse
+  - r-jsonlite
+  - r-essentials
+  - r-argparse
+  - rpy2<3.6.0
   - pandas
   - ipykernel
   - scikit-image

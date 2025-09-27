@@ -1,8 +1,25 @@
 import numpy as np
 import sys
 from warnings import warn
+from scipy.stats import norm
 from sklearn.metrics import mean_absolute_percentage_error, r2_score, mean_squared_error, root_mean_squared_error
+from typing import Optional
 
+def standard_normal_deviation_for_quantile_percent(quantile_percent: float) -> float:
+    # central interval: p = 0.5 + 0.5 * (quantile / 100)
+    p = 0.5 + 0.5 * (quantile_percent / 100.0)
+    return float(norm.ppf(p))
+
+
+def sample_from_predictive(
+    mu: np.ndarray, sigma: np.ndarray, n_samples: int = 128, rng: np.random.Generator = None
+) -> np.ndarray:
+    """
+    Draw samples from independent normals per output dim.
+    mu, sigma: shape (P,), returns samples shape (n_samples, P)
+    """
+    rng = np.random.default_rng() if rng is None else rng
+    return rng.normal(loc=mu, scale=sigma, size=(n_samples, mu.shape[-1]))
 
 class ErrorMetrics:
     @staticmethod
@@ -114,3 +131,39 @@ class ErrorMetrics:
             raise ValueError("predictions and measurements must be of equal size")
 
         return np.mean((predictions_upper95.flatten() >= observations.flatten()) & (observations.flatten() >= predictions_lower95.flatten()))
+
+    @staticmethod
+    def QuantileCoverageError(
+        predictions_lower: np.ndarray,
+        predictions_upper: np.ndarray,
+        observations: np.ndarray,
+        nominal_coverage: float = 0.95,
+    ) -> float:
+        """Quantile (interval) coverage error for central prediction intervals.
+
+        Computes the absolute difference between the empirical coverage of the
+        central interval [lower, upper] and the desired nominal coverage.
+        This mirrors the idea of GPyTorch's quantile coverage metrics, adapted
+        to the case where only the 2-sided central interval is available.
+
+        Args:
+            predictions_lower (np.ndarray): lower bounds of the interval
+            predictions_upper (np.ndarray): upper bounds of the interval
+            observations (np.ndarray): observed targets
+            nominal_coverage (float): desired nominal coverage (e.g., 0.95)
+
+        Returns:
+            float: |empirical_coverage - nominal_coverage|
+
+        Reference:
+            GPyTorch metrics (quantile coverage) (`https://github.com/cornellius-gp/gpytorch/blob/main/gpytorch/metrics/metrics.py`).
+        """
+        lower = predictions_lower.astype(float).flatten()
+        upper = predictions_upper.astype(float).flatten()
+        y = observations.astype(float).flatten()
+
+        if not (lower.size == upper.size == y.size):
+            raise ValueError("lower, upper, and observations must have the same size")
+
+        empirical_coverage = float(np.mean((y >= lower) & (y <= upper)))
+        return abs(empirical_coverage - float(nominal_coverage))

@@ -84,7 +84,7 @@ class SVGP_LMC(gpytorch.models.ApproximateGP):
         covar_x = self.covar_module(x)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
 
-class MultiTask_GP:
+class MultiTaskGP:
     """
     Multi-task Gaussian Process using Sparse Variational GP with Linear Model of Coregionalization (LMC).
     

@@ -67,6 +67,11 @@ conda activate high_dim_out_gp
 ## Data
 The detailed description and the source of the data used here are described [here](./docs/data.md).
 
+To download the data, run:
+```bash
+./scripts/fetch_data.sh
+```
+
 ## Available Models
 
 This repository implements several Gaussian Process models for high-dimensional output problems:

@@ -1,6 +1,5 @@
 import torch
 import time
-import math
 import numpy as np
 import gpytorch
 import logging
@@ -10,12 +9,11 @@ from gpytorch.models import ExactGP
 from gpytorch.means import ConstantMean, MultitaskMean
 from gpytorch.kernels import ScaleKernel, MultitaskKernel
 from gpytorch.kernels.keops import RBFKernel, MaternKernel
-from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
+from gpytorch.distributions import MultitaskMultivariateNormal
 from gpytorch.likelihoods import MultitaskGaussianLikelihood
 from gpytorch.mlls import ExactMarginalLogLikelihood
-from gpytorch.priors import GammaPrior
 from gpytorch.constraints import GreaterThan
-
+from gpytorch_emulator.lbfgs import FullBatchLBFGS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,14 +25,13 @@ class BatchIndependentMultioutputGPModel(ExactGP):
     the same hyperparameters. This mimics the PPGaSP approach (shared kernel,
     fixed identity task covariance) and greatly reduces computational cost.
     """
-    def __init__(self, train_x, train_y, likelihood, kernel_type='matern_5_2', mimic_ppgasp=False):
+    def __init__(self, train_x, train_y, likelihood, kernel_type='matern_5_2'):
         """
         Args:
             train_x: training inputs of shape (n, d)
             train_y: training outputs of shape (n, num_tasks)
             likelihood: a MultitaskGaussianLikelihood instance
             kernel_type: one of 'matern_5_2', 'matern_3_2', or 'rbf'
-            mimic_ppgasp: whether to mimic the conceptual idea of PPGaSP. By default, False.
             
         """
         super().__init__(train_x, train_y, likelihood)
@@ -43,34 +40,22 @@ class BatchIndependentMultioutputGPModel(ExactGP):
         
         self.num_tasks = train_y.shape[-1]
         self.input_dim = train_x.shape[-1]
-        self.mimic_ppgasp = mimic_ppgasp
-        # Create batched mean (num_tasks,)
-        # self.mean_module = ConstantMean(batch_shape=torch.Size([self.num_tasks]),
-        #                                 constant_prior=NormalPrior(0.0, 1.0)) if self.mimic_ppgasp else \
-        #                                     ConstantMean(batch_shape=torch.Size([self.num_tasks]))
-        self.mean_module = MultitaskMean(ConstantMean(), num_tasks=self.num_tasks) if self.mimic_ppgasp else \
-                                            ConstantMean(batch_shape=torch.Size([self.num_tasks]))
-
+        # Mean module for multitask model
+        self.mean_module = MultitaskMean(ConstantMean(), num_tasks=self.num_tasks)
         
+<<<<<<< HEAD
         empirical_scale = (train_x.max(dim=0).values - train_x.min(dim=0).values).mean().item()
         shape_param = 2.5  # Slightly lower shape parameter for better regularization
         rate_param = 5.0 / empirical_scale  # Scale based on feature range
 
+=======
+>>>>>>> c066404 (Pulled down update to pca_psimpy)
         if kernel_type == 'matern_5_2':
-            base_kernel = MaternKernel(nu=2.5, ard_num_dims=self.input_dim,
-                                           lengthscale_prior=GammaPrior(shape_param, rate_param)) if self.mimic_ppgasp else \
-                                               MaternKernel(nu=2.5, ard_num_dims=self.input_dim, 
-                                                            batch_shape=torch.Size([self.num_tasks]), 
-                                                            lengthscale_constraint=gpytorch.constraints.GreaterThan(1e-4))
+            base_kernel = MaternKernel(nu=2.5, ard_num_dims=self.input_dim)
         elif kernel_type == 'matern_3_2':
-            base_kernel = MaternKernel(nu=1.5, ard_num_dims=self.input_dim,
-                                           lengthscale_prior=GammaPrior(shape_param, rate_param)) if self.mimic_ppgasp else \
-                                               MaternKernel(nu=1.5, ard_num_dims=self.input_dim, 
-                                                            batch_shape=torch.Size([self.num_tasks]), 
-                                                            lengthscale_constraint=gpytorch.constraints.GreaterThan(1e-4))
+            base_kernel = MaternKernel(nu=1.5, ard_num_dims=self.input_dim)
         elif kernel_type == 'rbf':
-            base_kernel = RBFKernel(ard_num_dims=self.input_dim, lengthscale_prior=GammaPrior(shape_param, rate_param)) if self.mimic_ppgasp else \
-                RBFKernel(ard_num_dims=self.input_dim, batch_shape=torch.Size([self.num_tasks]), lengthscale_constraint=gpytorch.constraints.GreaterThan(1e-4))
+            base_kernel = RBFKernel(ard_num_dims=self.input_dim)
         else:
             raise ValueError("Unsupported kernel_type: {}".format(kernel_type))
 
@@ -86,15 +71,35 @@ class BatchIndependentMultioutputGPModel(ExactGP):
         #     base_kernel,
         #     batch_shape=torch.Size([self.num_tasks])
         # )
+<<<<<<< HEAD
         self.covar_module = ScaleKernel(coregionalized_kernel) if self.mimic_ppgasp \
             else ScaleKernel(base_kernel,batch_shape=torch.Size([self.num_tasks]))
+=======
+        self.covar_module = ScaleKernel(coregionalized_kernel)
+>>>>>>> c066404 (Pulled down update to pca_psimpy)
         
         # Initialize lengthscales with dimension-aware values
         self._initialize_lengthscales(train_x, train_y)
         
-        if self.mimic_ppgasp:
-            # Tie the parameters across tasks so that each output uses the same hyperparameters.
-            self.tie_parameters_across_tasks()
+        # Parameters are shared across tasks via MultitaskKernel(rank=0)
+        # Tie the parameters across tasks so that each output uses the same hyperparameters.
+        self.tie_parameters_across_tasks()
+    
+    def _compute_reference_prior(self):
+        """
+        Compute log reference prior on inverse lengthscales (beta = 1 / lengthscale).
+        """
+        a = 0.2
+        n = self.train_x_buf.shape[0]
+        p = self.input_dim
+        b = (1.0 / (n ** (1.0 / p))) * (a + p)
+
+        inner = self._get_inner_kernel(self.covar_module)
+        lengthscales = inner.lengthscale.squeeze()
+        beta = 1.0 / lengthscales.clamp_min(1e-12)
+
+        log_prior_ls = (a + 1.0) * torch.log(beta).sum() - b * beta.sum()
+        return log_prior_ls
 
     def _get_inner_kernel(self, kernel):
         """
@@ -115,30 +120,21 @@ class BatchIndependentMultioutputGPModel(ExactGP):
         """Initialize lengthscales based on input data characteristics"""
         # Calculate feature ranges for better initialization
         feature_ranges = train_x.max(dim=0).values - train_x.min(dim=0).values
-        
         # Find the actual MaternKernel or RBFKernel you wrapped above
         inner = self._get_inner_kernel(self.covar_module)
-
-        if self.mimic_ppgasp:
-            n_samples = train_x.shape[0]
-            # scaling_factors = feature_ranges / math.sqrt(n)
-            input_dim = float(self.input_dim)
-            scaling_factors = feature_ranges / (n_samples ** (1.0 / input_dim))
-            # Initialize the base kernel's lengthscale with dimension-specific values
-            init_lengthscales = 50.0 * scaling_factors
-            inner.initialize(lengthscale=init_lengthscales.unsqueeze(0))
-            # Register dimension-specific lower bounds
-            # lower_bounds = -torch.log(torch.tensor(0.1)) / feature_ranges
-            lower_bounds = -torch.log(torch.tensor(0.1)) / (feature_ranges * input_dim)
-            raw_lb = torch.log(torch.exp(lower_bounds) - 1.0)
-            inner.register_constraint("raw_lengthscale", GreaterThan(raw_lb))
-        else:    
-            median_range = feature_ranges.median().item()
-            init_lengthscale = math.sqrt(self.input_dim) * median_range
-            inner.lengthscale = init_lengthscale
-            # Initialize outputscale based on data variance
-            init_outputscale = train_y.var(dim=0).mean().sqrt()
-            self.covar_module.outputscale = init_outputscale
+        n_samples = train_x.shape[0]
+        input_dim = float(self.input_dim)
+        # Initialize lengthscales using empirical scaling
+        scaling_factors = feature_ranges / (n_samples ** (1.0 / input_dim))
+        init_lengthscales = 3.0 * scaling_factors
+        inner.initialize(lengthscale=init_lengthscales.unsqueeze(0))
+        # Set lower bounds for lengthscales in raw space
+        lower_bounds = -torch.log(torch.tensor(0.1)) / (feature_ranges * input_dim)
+        raw_lb = torch.log(torch.exp(lower_bounds) - 1.0)
+        inner.register_constraint("raw_lengthscale", GreaterThan(raw_lb))
+        # Initialize outputscale
+        init_outputscale = train_y.var(dim=0).mean().sqrt()
+        self.covar_module.outputscale = init_outputscale
 
     def tie_parameters_across_tasks(self):
         """
@@ -167,6 +163,7 @@ class BatchIndependentMultioutputGPModel(ExactGP):
         # x has shape (n, d)
         mean_x = self.mean_module(x)
         covar_x = self.covar_module(x)
+<<<<<<< HEAD
         if self.mimic_ppgasp:
             # For mimic_ppgasp=True: Uses MultitaskMean and MultitaskKernel 
             # This should work directly with MultitaskMultivariateNormal
@@ -180,20 +177,27 @@ class BatchIndependentMultioutputGPModel(ExactGP):
             
 class MoGP_GPytorch:
     def __init__(self, device: str, kernel_type: str = 'matern_5_2', mimic_ppgasp: bool = True):
+=======
+        return MultitaskMultivariateNormal(mean_x, covar_x)
+            
+class BiGP:
+    def __init__(self, 
+                 device: str, 
+                 kernel_type: str = 'matern_5_2', 
+                 method: str = 'post_mode',
+                 prior_weight: float = 0.25,
+                 normalize: bool = True):
+>>>>>>> c066404 (Pulled down update to pca_psimpy)
         self.device = torch.device(device)
         self.kernel_type = kernel_type
-        self.mimic_ppgasp = mimic_ppgasp
+        self.method = method  # 'post_mode' or 'mle'
+        self.prior_weight = float(prior_weight)
+        self.normalize = bool(normalize)
     
     def train(self,
               train_X: np.ndarray | torch.Tensor, train_Y: np.ndarray | torch.Tensor, 
               num_epochs: int = 200, lr: float = 0.1, 
-              optim: str = "adam", enable_scheduler: bool = False):
-        # 1) LBFGS/mixed not allowed for MoGP_GPytorch
-        if optim in ("lbfgs","mixed") and not isinstance(self, PCA_MoGP_GPytorch):
-           raise ValueError(
-               f"`{self.__class__.__name__}.train` only supports 'adam' or 'adamw'.\n"
-               "If you want to use 'lbfgs' or 'mixed', please use PCA_MoGP_GPytorch."
-               )
+              optim: str = "adam", num_finetune_epochs: int = 5):
         # Training setup
         if isinstance(train_X, np.ndarray):
             self.train_X = torch.from_numpy(train_X).to(torch.float32)
@@ -204,11 +208,30 @@ class MoGP_GPytorch:
         else:
             self.train_Y = train_Y
         self.train_X, self.train_Y = self.train_X.to(self.device), self.train_Y.to(self.device)
+
+        # Normalize X to [0, 1] and Y to zero-mean/unit-std
+        if self.normalize:
+            x_min = self.train_X.min(dim=0).values
+            x_max = self.train_X.max(dim=0).values
+            x_range = (x_max - x_min).clamp_min(1e-12)
+            self.x_min = x_min
+            self.x_range = x_range
+            self.train_X = (self.train_X - self.x_min) / self.x_range
+
+            y_mean = self.train_Y.mean(dim=0)
+            y_std = self.train_Y.std(dim=0).clamp_min(1e-12)
+            self.y_mean = y_mean
+            self.y_std = y_std
+            self.train_Y = (self.train_Y - self.y_mean) / self.y_std
         # Define the multitask likelihood.
-        self.likelihood = MultitaskGaussianLikelihood(num_tasks=self.train_Y.shape[1], rank=0).to(self.device)
+        self.likelihood = MultitaskGaussianLikelihood(
+            num_tasks=self.train_Y.shape[1],
+            rank=0,
+            noise_constraint=GreaterThan(1e-6),
+        ).to(self.device)
         # Instantiate the improved batched model.
         self.model = BatchIndependentMultioutputGPModel(self.train_X, self.train_Y, self.likelihood,
-                                                kernel_type=self.kernel_type, mimic_ppgasp=self.mimic_ppgasp).to(self.device)
+                                                kernel_type=self.kernel_type).to(self.device)
         self.model.train()
         self.likelihood.train()
         mll = ExactMarginalLogLikelihood(self.likelihood, self.model)
@@ -220,71 +243,89 @@ class MoGP_GPytorch:
         elif optim == "adamw":
             optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr)
         elif optim == "lbfgs":
-            optimizer = torch.optim.LBFGS(self.model.parameters(), 
-                                          lr=lr,
-                                          max_iter=30,
-                                          history_size=10,
-                                          tolerance_grad=1e-6,
-                                          tolerance_change=1e-8,
-                                          line_search_fn='strong_wolfe')
-            def closure():
-               optimizer.zero_grad()
-               output = self.model(self.train_X)
-               # The loss includes both the negative log likelihood and the negative log prior terms.
-               loss = -mll(output, self.train_Y)
-               loss.backward()
-               return loss
+            optimizer = FullBatchLBFGS(self.model.parameters(), 
+                                       lr=lr,
+                                       history_size=10,
+                                       line_search="Wolfe")
         elif optim == "mixed":
             optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
-            fine_tune_optimizer = torch.optim.LBFGS(self.model.parameters(), lr=0.1, max_iter=100)
-            def fine_tune_closure():
-               fine_tune_optimizer.zero_grad()
-               output = self.model(self.train_X)
-               loss = -mll(output, self.train_Y)
-               loss.backward()
-               return loss
+            fine_tune_optimizer = FullBatchLBFGS(self.model.parameters(), 
+                                                lr=lr,
+                                                history_size=10,
+                                                line_search="Wolfe")
         else:
             raise ValueError("Optimizer are only supported with `adam`, `adamw`, `lbfgs`, or `mixed`(i.e. Adam + LBFGS).")
-        
-        # Scheduler
-        scheduler = None
-        if enable_scheduler:
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=20)
         
         # Training
         num_epochs = num_epochs
         start_time = time.time()
-        for epoch in tqdm(range(num_epochs), desc="training..."):
-            if optim == "lbfgs":     
-                optimizer.step(closure)
-                if epoch  % 10 == 0:
-                   current_loss = closure().item()
-                   print(f"Epoch {epoch}/{num_epochs}, Loss: {current_loss:.3f}")
-            else:    
+        
+        if optim == "lbfgs":
+            preconditioner_size = 100
+            with gpytorch.settings.max_preconditioner_size(preconditioner_size):
+                def closure():
+                    optimizer.zero_grad()
+                    output = self.model(self.train_X)
+                    if self.method == 'post_mode':
+                        objective = mll(output, self.train_Y) + self.prior_weight * self.model._compute_reference_prior()
+                        loss = -objective
+                    else:
+                        loss = -mll(output, self.train_Y)
+                    return loss
+                loss = closure()
+                loss.backward()
+                
+                for epoch in tqdm(range(num_epochs), desc="training..."):
+                    options = {'closure': closure, 'current_loss': loss, 'max_ls': 10}
+                    loss, _, _, _, _, _, _, fail = optimizer.step(options)
+                    
+                    print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.3f}")
+                    
+                    if fail:
+                        print("LBFGS convergence reached!")
+                        break
+        else:    
+            for epoch in tqdm(range(num_epochs), desc="training..."):
                 optimizer.zero_grad()
                 output = self.model(self.train_X)
-                loss = -mll(output, self.train_Y)
+                if self.method == 'post_mode':
+                    objective = mll(output, self.train_Y) + self.prior_weight * self.model._compute_reference_prior()
+                    loss = -objective
+                else:
+                    loss = -mll(output, self.train_Y)
                 if epoch % 10 == 0:
                     print(f"Epoch {epoch}/{num_epochs}, Loss: {loss.item():.3f}")
                 loss.backward()
                 optimizer.step()
-                
-            if scheduler is not None:
-                scheduler.step(loss.item())
-            
+                            
         if fine_tune_optimizer is not None:
             # LBFGS fine-tuning after training with ADAM
-            if enable_scheduler:
-                fine_tune_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(fine_tune_optimizer, mode='min', factor=0.5, patience=5)
-            num_finetune_epochs = 20
-            for epoch in tqdm(range(num_finetune_epochs), desc="LBFGS fine-tuning"):
-                fine_tune_optimizer.step(fine_tune_closure)
-                fine_tune_scheduler.step(loss.item())
-                current_loss = fine_tune_closure().item()
-                print(f"Fine-tuning Epoch {epoch+1}/{num_finetune_epochs}, Loss: {current_loss:.3f}")
-                if fine_tune_optimizer.param_groups[0]['lr'] < 1e-6:
-                    print("Learning rate too small, stopping fine-tuning")
-                    break
+            preconditioner_size = 100
+            with gpytorch.settings.max_preconditioner_size(preconditioner_size):
+                def fine_tune_closure():
+                    fine_tune_optimizer.zero_grad()
+                    output = self.model(self.train_X)
+                    if self.method == 'post_mode':
+                        objective = mll(output, self.train_Y) + self.prior_weight * self.model._compute_reference_prior()
+                        loss = -objective
+                    else:
+                        loss = -mll(output, self.train_Y)
+                    return loss
+                loss = fine_tune_closure()
+                loss.backward()
+                for epoch in tqdm(range(num_finetune_epochs), desc="LBFGS fine-tuning"):
+                    options = {'closure': fine_tune_closure, 'current_loss': loss, 'max_ls': 10}
+                    loss, _, _, _, _, _, _, fail = fine_tune_optimizer.step(options)
+                    
+                    print(f"Fine-tuning Epoch {epoch+1}/{num_finetune_epochs}, Loss: {loss.item():.3f}")
+                    
+                    if fail:
+                        print("LBFGS convergence reached!")
+                        break
+                    
+                    if fine_tune_optimizer.param_groups[0]['lr'] < 1e-6:
+                        print("Learning rate too small, stopping fine-tuning")
+                        break
         
         training_time = time.time() - start_time
         print(f"Training GPytorch takes {training_time:.3f} s")
@@ -296,26 +337,39 @@ class MoGP_GPytorch:
         else:
             self.test_X = test_X
         self.test_X = self.test_X.to(self.device)
+
+        if self.normalize:
+            self.test_X = (self.test_X - self.x_min) / self.x_range
         self.model.eval()
         self.likelihood.eval()
         start_time = time.time()
         with torch.no_grad(), gpytorch.settings.fast_pred_var():
             predictions = self.likelihood(self.model(self.test_X))
         infer_time = time.time() - start_time    
-        mean = predictions.mean.cpu().detach().numpy()
-        std = predictions.stddev.cpu().detach().numpy()
+        mean = predictions.mean
+        std = predictions.stddev
         lower, upper = predictions.confidence_region()
+
+        # Denormalize Y if enabled
+        if self.normalize:
+            mean = mean * self.y_std + self.y_mean
+            std = std * self.y_std
+            lower = lower * self.y_std + self.y_mean
+            upper = upper * self.y_std + self.y_mean
+
+        mean = mean.cpu().detach().numpy()
+        std = std.cpu().detach().numpy()
         lower = lower.cpu().detach().numpy()
         upper = upper.cpu().detach().numpy()
         return mean, std, lower, upper, infer_time
     
-class PCA_MoGP_GPytorch(MoGP_GPytorch):
+class PCA_BiGP(BiGP):
     def __init__(self, 
                  output_dim_reducer,
                  device: str, 
                  kernel_type: str = 'matern_5_2', 
-                 mimic_ppgasp: bool = False):
-        super().__init__(device, kernel_type, mimic_ppgasp)
+                 method: str = 'post_mode'):
+        super().__init__(device, kernel_type, method)
         self.output_dim_reducer = output_dim_reducer
         self.scaler = StandardScaler()
     
@@ -347,16 +401,45 @@ class PCA_MoGP_GPytorch(MoGP_GPytorch):
         test_Y_scaled_reduced = self.output_dim_reducer.transform(test_Y_scaled)
         return train_X_scaled, train_Y_scaled_reduced, test_X_scaled, test_Y_scaled_reduced
     
-    def postprocess_invert_back(self, predictions_mean: np.ndarray):
+    def postprocess_invert_back(self, 
+                                predictions_mean: np.ndarray, 
+                                predictions_std: np.ndarray = None):
+        num_samples = predictions_mean.shape[0]
         # Transform reduced dimension back to original dimension 
         reconstructed_bands = self.output_dim_reducer.inverse_transform(predictions_mean)
         print(f"Inverse transform back to original output dimension: {reconstructed_bands.shape[1]}.")
-
         # Unnormalize data
         mu = self.scaler.mean_[self.original_input_dim:]
         sigma = self.scaler.scale_[self.original_input_dim:]
-        predictions = reconstructed_bands * sigma + mu
-        return predictions
+        predictions_mean_original = reconstructed_bands * sigma + mu
+        std_original = None
+        lower_CI = None
+        upper_CI = None
+        if predictions_std is not None:
+            if hasattr(self.output_dim_reducer.reducer.model, "components_"):  
+                W = self.output_dim_reducer.reducer.model.components_
+                # Propagate diagonal covariance from latent space to original space:
+                var_standardized = (predictions_std ** 2) @ (W ** 2)
+                std_original = np.sqrt(var_standardized) * self.scaler.scale_[self.original_input_dim:]
+            else:  
+                num_mc_samples = 100
+                reduced_dim = self.output_dim_reducer.reducer.n_components
+                # Generate samples in reduced space
+                rng = np.random.default_rng()
+                latent_samples = rng.normal(loc=predictions_mean[:, :, None], scale=predictions_std[:, :, None], size=(num_samples, reduced_dim, num_mc_samples))
+                # Reconstruct original output space
+                original_dim = self.output_dim_reducer.reducer.model.n_features_in_
+                original_samples = np.zeros((num_samples, original_dim, num_mc_samples))
+                latent_flat = latent_samples.transpose(0, 2, 1).reshape(num_samples * num_mc_samples, reduced_dim)
+                original_flat = self.output_dim_reducer.inverse_transform(latent_flat)
+                original_flat = original_flat * sigma + mu
+                original_samples = original_flat.reshape(num_samples, num_mc_samples, original_dim).transpose(0, 2, 1)
+                # Compute statistics across samples
+                std_original = np.std(original_samples, axis=2)
+            margin = 1.96 * std_original
+            lower_CI = predictions_mean_original - margin
+            upper_CI = predictions_mean_original + margin 
+        return predictions_mean_original, std_original, lower_CI, upper_CI
         
         
         
