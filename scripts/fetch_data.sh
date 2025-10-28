@@ -40,24 +40,25 @@ if ! command -v unzip >/dev/null 2>&1; then
 fi
 
 # Desired folder structure
+ACHERON_BACKGROUND_DIR="${DATA_DIR}/acheron/background"
 ACHERON_TRAIN_INPUT_DIR="${DATA_DIR}/acheron/train/input"
 ACHERON_TRAIN_OUTPUT_DIR="${DATA_DIR}/acheron/train/output"
 ACHERON_TEST_INPUT_DIR="${DATA_DIR}/acheron/test/input"
 ACHERON_TEST_OUTPUT_DIR="${DATA_DIR}/acheron/test/output"
-
 SYN_TRAIN_INPUT_DIR="${DATA_DIR}/synthetic/train/input"
 SYN_TRAIN_OUTPUT_DIR="${DATA_DIR}/synthetic/train/output"
 SYN_TEST_INPUT_DIR="${DATA_DIR}/synthetic/test/input"
 SYN_TEST_OUTPUT_DIR="${DATA_DIR}/synthetic/test/output"
 
 mkdir -p \
-    "${ACHERON_TRAIN_INPUT_DIR}" "${ACHERON_TRAIN_OUTPUT_DIR}" \
+    "${ACHERON_TRAIN_INPUT_DIR}" "${ACHERON_TRAIN_OUTPUT_DIR}" "${ACHERON_BACKGROUND_DIR}" \
     "${ACHERON_TEST_INPUT_DIR}"  "${ACHERON_TEST_OUTPUT_DIR}" \
     "${SYN_TRAIN_INPUT_DIR}"     "${SYN_TRAIN_OUTPUT_DIR}" \
     "${SYN_TEST_INPUT_DIR}"      "${SYN_TEST_OUTPUT_DIR}"
 
 # GitHub CSV sources: web_url|desired_dir
 CSV_SOURCES=(
+  "https://github.com/yildizanil/frontiers_yildizetal/blob/main/src/frontiers_yildizetal/files/raster/hillshade_acheron.tif"|${ACHERON_BACKGROUND_DIR}
   "https://github.com/yildizanil/frontiers_yildizetal/blob/main/src/frontiers_yildizetal/utilities/input/acheron_emulator.csv|${ACHERON_TRAIN_INPUT_DIR}"
   "https://github.com/yildizanil/frontiers_yildizetal/blob/main/src/frontiers_yildizetal/utilities/input/acheron_validation_emulator.csv|${ACHERON_TEST_INPUT_DIR}"
   "https://github.com/yildizanil/frontiers_yildizetal/blob/main/src/frontiers_yildizetal/utilities/input/synth_emulator.csv|${SYN_TRAIN_INPUT_DIR}"
