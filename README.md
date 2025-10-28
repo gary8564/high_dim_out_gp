@@ -1,38 +1,42 @@
 # High-Dimensional Output Gaussian Processes
 
 ## Description
-This repository implements high-dimensional output Gaussian Process emulators using [GPyTorch](https://gpytorch.ai/) and [RobustGaSP](https://git.rwth-aachen.de/mbd/psimpy), Gaussian Process frameworks based on PyTorch and R, respectively. GPyTorch provides flexibility and GPU acceleration, while RobustGaSP offers robust optimization and massive output dimensions in geostatistical applications. One 
-advantage using GPytorch is that, compared to RobustGaSP, it has a lot more degrees of flexibility to develop the Gaussian Process model and can easily be extended to 
+
+This repository implements high-dimensional output Gaussian Process emulators using [GPyTorch](https://gpytorch.ai/) and [RobustGaSP](https://git.rwth-aachen.de/mbd/psimpy), Gaussian Process frameworks based on PyTorch and R, respectively. GPyTorch provides flexibility and GPU acceleration, while RobustGaSP offers robust optimization and massive output dimensions in geostatistical applications. One
+advantage using GPytorch is that, compared to RobustGaSP, it has a lot more degrees of flexibility to develop the Gaussian Process model and can easily be extended to
 integrate with STOA deep learning approach.
 
 More comparison between RobustGaSP and GPytorch are listed as the table below:
-| Feature                     | PPGaSP (RobustGaSP)                                                                                 | GPyTorch                                                                       |
+| Feature | PPGaSP (RobustGaSP) | GPyTorch |
 |-----------------------------|-----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
-| **Language**                | R (backend in C++)                                                                                  | Python (PyTorch-based)                                                          |
-| **Hardware support**        | CPU only, optimized for single-threaded performance via compiled C++ (via Rcpp and RcppArmadillo)  | Fully integrated with PyTorch, supports CUDA for GPU acceleration              |
-| **Gaussian Process Type**   | Robust & Partial Independent Multi-output Gaussian Process                                          | Full, Approximate, and Multi-task Gaussian Process models                      |
-| **Optimization Method**     | L-BFGS, Nelder-Mead, Brent (via `nloptr` in R, fast second-order optimization)                     | Adam, L-BFGS, Cosine Annealing, and other gradient-based optimizers            |
-| **Matrix computation**      | Uses Cholesky decomposition and avoids direct matrix inversion for efficiency                       | Uses linear operators (Kronecker, Toeplitz, or KeOps-based) to optimize matrix operations |
-| **Inference Speed**         | Extremely fast due to reduced matrix inversion and composite likelihood approximations              | Slower for exact GP, but scalable using variational methods and GPU support    |
-| **Multi-output GP support** | Assumes partial independence between outputs with shared covariance structure, reducing complexity | Fully flexible multitask GPs (LMC, Independent, Variational Multi-Output GPs)   |
-| **Target User**             | Well-suited for geostatistics with high-dimensional outputs                                         | Highly flexible, can be easily combined with SOTA deep learning research       |
-
+| **Language** | R (backend in C++) | Python (PyTorch-based) |
+| **Hardware support** | CPU only, optimized for single-threaded performance via compiled C++ (via Rcpp and RcppArmadillo) | Fully integrated with PyTorch, supports CUDA for GPU acceleration |
+| **Gaussian Process Type** | Robust & Partial Independent Multi-output Gaussian Process | Full, Approximate, and Multi-task Gaussian Process models |
+| **Optimization Method** | L-BFGS, Nelder-Mead, Brent (via `nloptr` in R, fast second-order optimization) | Adam, L-BFGS, Cosine Annealing, and other gradient-based optimizers |
+| **Matrix computation** | Uses Cholesky decomposition and avoids direct matrix inversion for efficiency | Uses linear operators (Kronecker, Toeplitz, or KeOps-based) to optimize matrix operations |
+| **Inference Speed** | Extremely fast due to reduced matrix inversion and composite likelihood approximations | Slower for exact GP, but scalable using variational methods and GPU support |
+| **Multi-output GP support** | Assumes partial independence between outputs with shared covariance structure, reducing complexity | Fully flexible multitask GPs (LMC, Independent, Variational Multi-Output GPs) |
+| **Target User** | Well-suited for geostatistics with high-dimensional outputs | Highly flexible, can be easily combined with SOTA deep learning research |
 
 ## Getting started
 
 ### 1. Clone the repository:
+
 ```bash
 git clone --recurse-submodules https://github.com/gary8564/high_dim_out_gp.git
 ```
 
 ### 2. Installation
+
 Using conda:
+
 ```bash
 conda env create -f environment.yaml
 conda activate high_dim_out_gp
 ```
 
 ### 3. Repository Structure
+
 ```text
 .
 ├── docs/
@@ -61,13 +65,15 @@ conda activate high_dim_out_gp
 ├── environment.yaml               # Conda environment specification
 ├── pyproject.toml                # Python project configuration
 ├── .gitignore
-└── README.md                        
+└── README.md
 ```
 
 ## Data
+
 The detailed description and the source of the data used here are described [here](./docs/data.md).
 
 To download the data, run:
+
 ```bash
 ./scripts/fetch_data.sh
 ```
@@ -77,17 +83,21 @@ To download the data, run:
 This repository implements several Gaussian Process models for high-dimensional output problems:
 
 ### 1. Multi-output Gaussian Processes (`ppgasp.py`)
+
 - **MoGP_GPytorch**: Multi-output GP with independent outputs or shared hyperparameters
 - **PCA_MoGP_GPytorch**: PCA-based dimension reduction + Multi-output GP
 - **BatchIndependentMultioutputGPModel**: Batch processing for multiple independent GPs
 
 ### 2. Sparse Variational Gaussian Processes (`svgp_lmc.py`)
+
 - **SVGP_LMC**: Sparse Variational GP with Linear Model of Coregionalization
 - **MultiTask_GP**: Adaptive multi-task GP with automatic parameter selection
 
 ### 3. PCA + PPGaSP Integration (`pca_psimpy/`)
+
 - **PCAPPGaSP**: PCA dimension reduction + Projected Predictive Gaussian Stochastic Process
 - **PCAScalarGaSP**: PCA dimension reduction for scalar output problems
 
 ## Usage
 
+All case studies are demonstrated as Jupyter notebooks in `demo/` folder.

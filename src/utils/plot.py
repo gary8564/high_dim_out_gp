@@ -619,23 +619,14 @@ def plot_pca_zero_output_hist(ground_truth: np.ndarray, predictions: dict, thres
     """
     Plot the histogram of the zero output.
     """
-    # Masking
     ground_truth = np.where(ground_truth < threshold, 0, ground_truth)
     arrs = [ground_truth]
-    labels = ['Ground-truth']
+    labels = ['Ground-truth']   
     for model_name, prediction in predictions.items():
         prediction = np.where(prediction < threshold, 0, prediction)
         arrs.append(prediction)
-        if model_name == "ppgasp":
-            labels.append("PPGaSP")
-        if model_name == "pca_ppgasp":
-            labels.append("PCA-PPGaSP")
-        if model_name == "bigp":
-            labels.append("BiGP")
-        if model_name == "pca_bigp":
-            labels.append("PCA-BiGP")
-        if model_name == "lmc":
-            labels.append("LMC")
+        labels.append(model_name)
+        
     
     colors = [f'C{i}' for i in range(len(arrs))]
     zero_counts = [np.count_nonzero(arr == 0) for arr in arrs]
@@ -646,7 +637,7 @@ def plot_pca_zero_output_hist(ground_truth: np.ndarray, predictions: dict, thres
     ax.bar(x, zero_counts, width, color=colors)
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=30, ha='right')
-    ax.set_ylabel('Number of zero values')
+    ax.set_ylabel('Amounts of zero-output cells')
     plt.tight_layout()
     plt.show()
     
